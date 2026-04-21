@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\n// Use a highly compatible ID generation method\nconst articleId = 'art_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);\n\nreturn [{\n  json: {\n    article_id: articleId,\n    created_at: new Date().toISOString(),\n    title: (body.title || '').trim(),\n    content: (body.content || '').trim(),\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: (body.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', '),\n    seo_status: 'pending',\n    seo_requested_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n// Reliable ID generation for all environments\nconst articleId = 'art_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);\n\nreturn [{\n  json: {\n    article_id: articleId,\n    created_at: new Date().toISOString(),\n    title: (body.title || '').trim(),\n    content: (body.content || '').trim(),\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: (body.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', '),\n    seo_status: 'pending',\n    seo_requested_at: new Date().toISOString()\n  }\n}];"
       },
       "id": "node-normalize",
       "name": "Normalize Data",
@@ -48,7 +48,7 @@
       "id": "node-sheet-a",
       "name": "Store in Sheet A",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "typeVersion": 4,
       "position": [700, 300]
     },
     {
@@ -59,7 +59,7 @@
       "id": "node-respond",
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
+      "typeVersion": 1,
       "position": [920, 300]
     }
   ],
