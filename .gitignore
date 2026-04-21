@@ -31,3 +31,5 @@ desktop.ini
 # Editor
 .vscode/settings.json
 .idea/
+
+.vercel

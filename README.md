@@ -1,53 +1,67 @@
 # Article Publishing & SEO Automation System
 
-## Overview
-This repository contains a full-stack Next.js project and n8n workflow assets for automating article submission, ingestion, and subsequent AI-based SEO generation.
+A production-ready system that automates the article ingestion, SEO analysis, and ranking enrichment process.
 
-### Part 1: Frontend Application
-Built with Next.js (App Router), React, and TailwindCSS (v4). It's designed to be deployed instantly on Vercel. 
-- Features glassmorphism UI and dynamic loading states.
-- Client-side validation.
-- Generates an `idempotency_key` client-side, attaching it in the headers & body to ensure you strictly avoid duplicate submissions on retry.
-
-### Part 2: Required Google Sheets Formats
-You will need a Google Sheet with 2 specific worksheets. See `google_sheets_schema.txt` for exact column headers and instructions.
-
-### Part 3: n8n Workflows
-Within the root folder, you'll find:
-- `1-ingestion_workflow.json`
-- `2-seo_processing_workflow.json`
-- `docker-compose.yml` for self-hosting n8n instantly.
+## 🚀 Live Demo
+- **Frontend (Vercel):** [https://article-seo-automation-system.vercel.app](https://article-seo-automation-system.vercel.app)
+- **Google Sheet:** [Link to Sheet](https://docs.google.com/spreadsheets/d/1b9Nkj4Mt3jLSDG6BCwLKdQFw3W9WHjCQM2v18JlSHis/edit?usp=sharing)
 
 ---
 
-## 🚀 How to Test & Setup
+## 🛠️ System Architecture
 
-### 1. Run the Frontend locally
-```bash
-cd frontend
-npm install
-npm run dev
-```
+1.  **Frontend (Next.js 14)**: A high-performance, dark-themed UI for article submission. It includes client-side validation, duplicate submission protection, and real-time status feedback.
+2.  **n8n Workflow #1 (Ingestion)**: Receives POST requests, validates content, normalizes tags into CSV format, generates a unique UUID (article_id), and logs the entry into **Sheet A** with a `pending` status.
+3.  **n8n Workflow #2 (SEO Processing)**: A scheduled worker that "locks" pending records, performs an idempotency check, generates SEO metadata and advanced ranking insights via **OpenAI (GPT-4o-mini)**, and stores the structured results in **Sheet B**.
 
-### 2. Hosting n8n Locally (Docker)
-1. In the root directory, run `docker-compose up -d`.
-2. Open n8n at `http://localhost:5678`.
+---
 
-### 3. Configure Webhooks
-The webhook configured in `1-ingestion_workflow.json` listens by default to the path `webhook/article`.
-When running n8n locally, the URL to test is:
-`http://localhost:5678/webhook-test/article`
+## 📋 How to Test
 
-**Connecting Frontend:** Create an `.env.local` inside the `/frontend` directory and define:
-`NEXT_PUBLIC_N8N_WEBHOOK_URL=http://localhost:5678/webhook-test/article` (Update this depending on test/production endpoint in n8n).
+1.  **Submit an Article**: Visit the [Frontend URL](https://article-seo-automation-system.vercel.app) and fill out the form.
+2.  **Verify Ingestion**: Check the **Articles** tab in the Google Sheet. You should see your article with `seo_status = pending`.
+3.  **Wait for Processing**: The SEO worker runs every 5 minutes (or can be triggered manually in n8n). Once processed, the status in **Articles** will change to `done`.
+4.  **View Results**: Check the **SEO_Results** tab to see your generated keywords, meta tags, and ranking insights.
 
-### 4. Idempotency Approach
-- The Next.js frontend generates a `crypto.randomUUID()` assigned to `idempotencyKey` when the page finishes loading.
-- It attaches this string as `X-Idempotency-Key` and `idempotency_key` in the payload structure.
-- The n8n ingestion workflow uses this ID as the definitive `article_id`.
-- The n8n SEO workflow specifically enforces idempotency by checking Sheet B prior, or relies firmly on the Google Sheets update command mapped strictly to the unique key `article_id`. Since the node is marked to search by key, Google Sheets will overwrite preventing duplications.
+---
 
-### 5. How Ranking Insights are Generated
-- Ranking insights rely on an advanced heuristic LLM prompt in Workflow #2. 
-- The OpenAI model takes the title and content and is prompted using "Zero Shot Generation" with the System Prompt defined explicitly as an "Expert SEO Specialist". 
-- It simulates fetching competitiveness by categorizing generated keywords into: `primary_target`, `high_opportunity`, and `high_competition`, relying entirely on its large scale parameter knowledge of typical keyword difficulty trends and outputting strict JSON representations parsed directly into `Sheet B`.
+## 🔗 Webhook & API Details
+
+- **Ingestion Webhook (POST)**: `http://localhost:5679/webhook/article-ingest` (Local)
+- **Content-Type**: `application/json`
+- **Payload Example**:
+    ```json
+    {
+      "title": "Future of AI",
+      "content": "Deep dive into LLMs...",
+      "category": "Technology",
+      "tags": "AI, Tech, Future"
+    }
+    ```
+
+---
+
+## 🛡️ Idempotency & Reliability
+
+- **Frontend Level**: Submit buttons are disabled during transit to prevent rapid double-clicks.
+- **Workflow Level**: Before processing any article, Workflow #2 checks **Sheet B** for the `article_id`. If the ID already exists, the workflow immediately marks the article as `done` and skips the AI generation to save costs and prevent duplicate data.
+- **Status Transitions**: Records are "locked" with a `processing` status to prevent multiple n8n instances from picking up the same article simultaneously.
+
+---
+
+## 🤖 Ranking Insights Generation
+
+Ranking insights are generated using a custom-engineered prompt sent to OpenAI. The AI is instructed to:
+1.  **Identify Primary Target**: The single most effective keyword for the content.
+2.  **Analyze Opportunity**: Find keywords with low competition but high relevance.
+3.  **Identify Competition**: Highlight keywords that may be harder to rank for.
+4.  **Strategic Strategy**: Provide a short summary note on how to approach the ranking for that specific niche.
+
+The output is returned as a **strict JSON object**, which is then parsed and stored as a string in the `ranking_insights` column for further analysis.
+
+---
+
+## 📦 Project Structure
+- `src/`: Next.js frontend source code.
+- `n8n-workflows/`: JSON exports for Workflow #1 and #2.
+- `start_all.bat`: Local startup script for both Frontend and n8n.
