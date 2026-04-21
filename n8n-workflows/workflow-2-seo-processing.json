@@ -2,50 +2,91 @@
   "name": "Workflow 2 - SEO & Ranking Processing",
   "nodes": [
     {
-      "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 5 }] } },
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [100, 300]
+      "position": [
+        100,
+        300
+      ]
     },
     {
       "parameters": {
         "operation": "read",
         "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
         "sheetName": "Articles",
-        "filters": { "conditions": [{ "condition": "equal", "value1": "={{ $json.seo_status }}", "value2": "pending" }] }
+        "filters": {
+          "conditions": [
+            {
+              "condition": "equal",
+              "value1": "={{ $json.seo_status }}",
+              "value2": "pending"
+            }
+          ]
+        }
       },
       "name": "Read Pending",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [320, 300]
+      "position": [
+        320,
+        300
+      ]
     },
     {
       "parameters": {
         "operation": "update",
         "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
         "sheetName": "Articles",
-        "columns": { "mappingMode": "defineBelow", "value": { "article_id": "={{ $json.article_id }}", "seo_status": "processing" } }
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "seo_status": "processing"
+          }
+        }
       },
       "name": "Lock Record",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [540, 300]
+      "position": [
+        540,
+        300
+      ]
     },
     {
       "parameters": {
         "model": "gpt-4o-mini",
         "messages": {
           "values": [
-            { "role": "system", "content": "You are an SEO analyst. Return ONLY JSON." },
-            { "role": "user", "content": "Analyze: {{ $json.title }}. Content: {{ $json.content }}. Return: { primary_keywords: [], long_tail_keywords: [], meta_title: '', meta_description: '', ranking_insights: { primary_target: '', high_opportunity: [], high_competition: [], notes: '' } }" }
+            {
+              "role": "system",
+              "content": "You are an SEO analyst. Return ONLY JSON."
+            },
+            {
+              "role": "user",
+              "content": "Analyze: {{ $json.title }}. Content: {{ $json.content }}. Return: { primary_keywords: [], long_tail_keywords: [], meta_title: '', meta_description: '', ranking_insights: { primary_target: '', high_opportunity: [], high_competition: [], notes: '' } }"
+            }
           ]
         }
       },
       "name": "AI SEO Analysis",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [760, 300]
+      "position": [
+        760,
+        300
+      ]
     },
     {
       "parameters": {
@@ -68,7 +109,10 @@
       "name": "Save to Sheet B",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "onError": "continueErrorOutput"
     },
     {
@@ -76,36 +120,107 @@
         "operation": "update",
         "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
         "sheetName": "Articles",
-        "columns": { "mappingMode": "defineBelow", "value": { "article_id": "={{ $node['Lock Record'].json.article_id }}", "seo_status": "done" } }
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $node['Lock Record'].json.article_id }}",
+            "seo_status": "done"
+          }
+        }
       },
       "name": "Mark Done",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1250, 200]
+      "position": [
+        1250,
+        200
+      ]
     },
     {
       "parameters": {
         "operation": "update",
         "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
         "sheetName": "Articles",
-        "columns": { "mappingMode": "defineBelow", "value": { "article_id": "={{ $node['Lock Record'].json.article_id }}", "seo_status": "failed", "seo_error": "={{ $json.message }}" } }
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $node['Lock Record'].json.article_id }}",
+            "seo_status": "failed",
+            "seo_error": "={{ $json.message }}"
+          }
+        }
       },
       "name": "Handle Failure",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1250, 450]
+      "position": [
+        1250,
+        450
+      ]
     }
   ],
   "connections": {
-    "Schedule Trigger": { "main": [[{ "node": "Read Pending", "type": "main", "index": 0 }]] },
-    "Read Pending": { "main": [[{ "node": "Lock Record", "type": "main", "index": 0 }]] },
-    "Lock Record": { "main": [[{ "node": "AI SEO Analysis", "type": "main", "index": 0 }]] },
-    "AI SEO Analysis": { "main": [[{ "node": "Save to Sheet B", "type": "main", "index": 0 }]] },
-    "Save to Sheet B": { 
+    "Schedule Trigger": {
       "main": [
-        [{ "node": "Mark Done", "type": "main", "index": 0 }],
-        [{ "node": "Handle Failure", "type": "main", "index": 1 }]
-      ] 
+        [
+          {
+            "node": "Read Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Pending": {
+      "main": [
+        [
+          {
+            "node": "Lock Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lock Record": {
+      "main": [
+        [
+          {
+            "node": "AI SEO Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI SEO Analysis": {
+      "main": [
+        [
+          {
+            "node": "Save to Sheet B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Sheet B": {
+      "main": [
+        [
+          {
+            "node": "Mark Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Failure",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
     }
   }
 }

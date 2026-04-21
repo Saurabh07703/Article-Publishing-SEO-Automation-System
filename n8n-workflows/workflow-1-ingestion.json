@@ -12,23 +12,17 @@
       "name": "Webhook - Article Ingest",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        250,
-        300
-      ]
+      "position": [250, 300]
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    article_id: crypto.randomUUID(),\n    created_at: new Date().toISOString(),\n    title: (body.title || '').trim(),\n    content: (body.content || '').trim(),\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: (body.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', '),\n    seo_status: 'pending',\n    seo_requested_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n// Use a highly compatible ID generation method\nconst articleId = 'art_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);\n\nreturn [{\n  json: {\n    article_id: articleId,\n    created_at: new Date().toISOString(),\n    title: (body.title || '').trim(),\n    content: (body.content || '').trim(),\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: (body.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', '),\n    seo_status: 'pending',\n    seo_requested_at: new Date().toISOString()\n  }\n}];"
       },
       "id": "node-normalize",
       "name": "Normalize Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        480,
-        300
-      ]
+      "position": [480, 300]
     },
     {
       "parameters": {
@@ -55,10 +49,7 @@
       "name": "Store in Sheet A",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [
-        700,
-        300
-      ]
+      "position": [700, 300]
     },
     {
       "parameters": {
@@ -69,45 +60,12 @@
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [
-        920,
-        300
-      ]
+      "position": [920, 300]
     }
   ],
   "connections": {
-    "Webhook - Article Ingest": {
-      "main": [
-        [
-          {
-            "node": "Normalize Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Data": {
-      "main": [
-        [
-          {
-            "node": "Store in Sheet A",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Store in Sheet A": {
-      "main": [
-        [
-          {
-            "node": "Respond Success",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Webhook - Article Ingest": { "main": [[{ "node": "Normalize Data", "type": "main", "index": 0 }]] },
+    "Normalize Data": { "main": [[{ "node": "Store in Sheet A", "type": "main", "index": 0 }]] },
+    "Store in Sheet A": { "main": [[{ "node": "Respond Success", "type": "main", "index": 0 }]] }
   }
 }
