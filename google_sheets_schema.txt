@@ -1,0 +1,7 @@
+# Copy and paste these headers into Row 1 of your Google Sheets
+
+=== SHEET 1: "Articles" ===
+article_id, created_at, title, content, category, author, published_at, tags_csv, raw_payload, seo_status, seo_requested_at, seo_processed_at, seo_error
+
+=== SHEET 2: "SEO_Results" ===
+article_id, processed_at, primary_keywords_csv, long_tail_keywords_csv, meta_title, meta_description, openai_raw, ranking_insights
