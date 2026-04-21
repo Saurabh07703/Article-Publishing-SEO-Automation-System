@@ -1,0 +1,407 @@
+{
+  "name": "Workflow 2 - SEO & Ranking Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 5 }] }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger (Every 5 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Articles"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "condition": "equal",
+              "value1": "={{ $json.seo_status }}",
+              "value2": "pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "read-pending",
+      "name": "Read Pending Articles (Sheet A)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [480, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "string": [
+            {
+              "value1": "={{ $json.seo_status }}",
+              "operation": "equals",
+              "value2": "pending"
+            }
+          ]
+        }
+      },
+      "id": "filter-pending",
+      "name": "Filter Pending Only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Articles"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "seo_status": "processing"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "lock-record",
+      "name": "Lock Record (status=processing)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [920, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO_Results"
+        },
+        "filters": {},
+        "options": {}
+      },
+      "id": "check-idempotency",
+      "name": "Check Sheet B for Existing",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1140, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Idempotency check: skip if article_id already exists in Sheet B\nconst articleId = $('Lock Record (status=processing)').first().json.article_id;\nconst sheetBRows = $('Check Sheet B for Existing').all();\nconst alreadyProcessed = sheetBRows.some(row => row.json.article_id === articleId);\n\nif (alreadyProcessed) {\n  return [{ json: { skip: true, article_id: articleId } }];\n}\n\nreturn [{ json: { skip: false, article_id: articleId, title: $('Lock Record (status=processing)').first().json.title, content: $('Lock Record (status=processing)').first().json.content, category: $('Lock Record (status=processing)').first().json.category } }];"
+      },
+      "id": "idempotency-check",
+      "name": "Idempotency Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.skip }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-already-done",
+      "name": "Already Processed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Articles"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "seo_status": "done",
+            "seo_processed_at": "={{ new Date().toISOString() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "mark-done-skip",
+      "name": "Mark Done (Skip Duplicate)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1800, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert SEO analyst. Respond ONLY with valid JSON, no markdown, no explanation."
+            },
+            {
+              "role": "user",
+              "content": "Analyze this article for SEO. Return strict JSON with these exact keys:\n\n{\n  \"primary_keywords\": [\"5-10 primary keywords\"],\n  \"long_tail_keywords\": [\"10-20 long-tail keywords\"],\n  \"meta_title\": \"max 60 chars\",\n  \"meta_description\": \"max 155 chars\",\n  \"ranking_insights\": {\n    \"primary_target\": \"best keyword to target\",\n    \"high_opportunity\": [\"low competition keywords\"],\n    \"high_competition\": [\"competitive keywords\"],\n    \"notes\": \"brief strategy note\"\n  }\n}\n\nTitle: {{ $json.title }}\nCategory: {{ $json.category }}\nContent: {{ $json.content.substring(0, 3000) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1500
+        }
+      },
+      "id": "openai-seo",
+      "name": "OpenAI - Generate SEO + Rankings",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [1800, 420],
+      "credentials": {
+        "openAiApi": {
+          "id": "OPENAI_CREDENTIALS_ID",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenAI response into structured fields\nconst raw = $input.first().json.message?.content || $input.first().json.text || '{}';\nlet parsed;\ntry {\n  const cleaned = raw.replace(/```json\\n?/g, '').replace(/```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error(`Failed to parse OpenAI response: ${e.message}`);\n}\n\nconst articleId = $('Idempotency Check').first().json.article_id;\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    article_id: articleId,\n    processed_at: now,\n    primary_keywords_csv: (parsed.primary_keywords || []).join(', '),\n    long_tail_keywords_csv: (parsed.long_tail_keywords || []).join(', '),\n    meta_title: (parsed.meta_title || '').slice(0, 60),\n    meta_description: (parsed.meta_description || '').slice(0, 155),\n    openai_raw: raw,\n    ranking_insights: JSON.stringify(parsed.ranking_insights || {})\n  }\n}];"
+      },
+      "id": "parse-seo",
+      "name": "Parse SEO Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2040, 420]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SEO_Results"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "primary_keywords_csv": "={{ $json.primary_keywords_csv }}",
+            "long_tail_keywords_csv": "={{ $json.long_tail_keywords_csv }}",
+            "meta_title": "={{ $json.meta_title }}",
+            "meta_description": "={{ $json.meta_description }}",
+            "openai_raw": "={{ $json.openai_raw }}",
+            "ranking_insights": "={{ $json.ranking_insights }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "write-sheet-b",
+      "name": "Write to Sheet B (SEO_Results)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2280, 420],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Articles"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "seo_status": "done",
+            "seo_processed_at": "={{ $json.processed_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "finalize-done",
+      "name": "Finalize (status=done)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2520, 420],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Articles"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $('Lock Record (status=processing)').first().json.article_id }}",
+            "seo_status": "failed",
+            "seo_error": "={{ $json.message || 'Unknown error during SEO processing' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "handle-failure",
+      "name": "Handle Failure (status=failed)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2280, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Every 5 min)": {
+      "main": [
+        [{ "node": "Read Pending Articles (Sheet A)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Read Pending Articles (Sheet A)": {
+      "main": [
+        [{ "node": "Filter Pending Only", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter Pending Only": {
+      "main": [
+        [{ "node": "Lock Record (status=processing)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Lock Record (status=processing)": {
+      "main": [
+        [{ "node": "Check Sheet B for Existing", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Sheet B for Existing": {
+      "main": [
+        [{ "node": "Idempotency Check", "type": "main", "index": 0 }]
+      ]
+    },
+    "Idempotency Check": {
+      "main": [
+        [{ "node": "Already Processed?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Already Processed?": {
+      "main": [
+        [{ "node": "Mark Done (Skip Duplicate)", "type": "main", "index": 0 }],
+        [{ "node": "OpenAI - Generate SEO + Rankings", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI - Generate SEO + Rankings": {
+      "main": [
+        [{ "node": "Parse SEO Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse SEO Response": {
+      "main": [
+        [{ "node": "Write to Sheet B (SEO_Results)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Write to Sheet B (SEO_Results)": {
+      "main": [
+        [{ "node": "Finalize (status=done)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": ""
+  },
+  "tags": [],
+  "pinData": {}
+}

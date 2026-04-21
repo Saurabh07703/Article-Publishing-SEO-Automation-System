@@ -1,0 +1,18 @@
+{
+  "sample_articles": [
+    {
+      "title": "10 Best E-commerce Platforms for Small Business in 2024",
+      "content": "Choosing the right e-commerce platform is crucial for small businesses looking to establish an online presence. In this comprehensive guide, we compare the top 10 platforms including Shopify, WooCommerce, BigCommerce, and more. We evaluate pricing, ease of use, scalability, and built-in SEO features to help you make an informed decision.",
+      "category": "Technology",
+      "author": "John Smith",
+      "tags": "ecommerce, small business, shopify, woocommerce, online store"
+    },
+    {
+      "title": "Complete Guide to Content Marketing Strategy for SaaS Companies",
+      "content": "Content marketing is the backbone of SaaS growth. This guide covers everything from keyword research and content planning to distribution and measurement. Learn how top SaaS companies like HubSpot and Ahrefs use content to drive organic traffic, generate leads, and reduce customer acquisition costs.",
+      "category": "Marketing",
+      "author": "Jane Doe",
+      "tags": "content marketing, saas, seo, lead generation, growth"
+    }
+  ]
+}

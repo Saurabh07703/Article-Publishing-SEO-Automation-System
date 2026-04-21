@@ -1,5 +1,33 @@
+# Dependencies
 node_modules/
-n8n_data/
-.env
+frontend/node_modules/
+
+# Next.js build output
+.next/
+frontend/.next/
+out/
+
+# Environment secrets — NEVER commit these
+.env.local
 .env*.local
+
+# Logs
+logs/*.log
+*.log
+
+# Build artifacts
+*.tsbuildinfo
+next-env.d.ts
+output/
+
+# Vercel
+.vercel
+
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+.idea/

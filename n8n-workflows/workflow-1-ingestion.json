@@ -1,0 +1,124 @@
+{
+  "name": "Workflow 1 - Article Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "article-ingest",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Article Ingest",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate & Normalize incoming article\nconst body = $input.first().json.body || $input.first().json;\n\nconst title = (body.title || '').trim();\nconst content = (body.content || '').trim();\n\nif (!title) throw new Error('title is required');\nif (!content) throw new Error('content is required');\n\nconst tags = (body.tags || '')\n  .split(',')\n  .map(t => t.trim())\n  .filter(Boolean)\n  .join(', ');\n\nconst now = new Date().toISOString();\nconst articleId = $('Webhook - Article Ingest').params.webhookId\n  ? crypto.randomUUID()\n  : `art_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;\n\nreturn [{\n  json: {\n    article_id: articleId,\n    created_at: now,\n    title,\n    content,\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: tags,\n    raw_payload: JSON.stringify(body),\n    seo_status: 'pending',\n    seo_requested_at: now,\n    seo_processed_at: '',\n    seo_error: ''\n  }\n}];"
+      },
+      "id": "validate-normalize",
+      "name": "Validate & Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Articles"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "created_at": "={{ $json.created_at }}",
+            "title": "={{ $json.title }}",
+            "content": "={{ $json.content }}",
+            "category": "={{ $json.category }}",
+            "author": "={{ $json.author }}",
+            "published_at": "={{ $json.published_at }}",
+            "tags_csv": "={{ $json.tags_csv }}",
+            "raw_payload": "={{ $json.raw_payload }}",
+            "seo_status": "={{ $json.seo_status }}",
+            "seo_requested_at": "={{ $json.seo_requested_at }}",
+            "seo_processed_at": "={{ $json.seo_processed_at }}",
+            "seo_error": "={{ $json.seo_error }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "write-sheet-a",
+      "name": "Write to Sheet A (Articles)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [720, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_CREDENTIALS_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, article_id: $('Validate & Normalize').first().json.article_id, message: 'Article submitted successfully' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 250]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, message: $json.error?.message || 'Validation failed' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-error",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [960, 450]
+    }
+  ],
+  "connections": {
+    "Webhook - Article Ingest": {
+      "main": [
+        [{ "node": "Validate & Normalize", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate & Normalize": {
+      "main": [
+        [{ "node": "Write to Sheet A (Articles)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Write to Sheet A (Articles)": {
+      "main": [
+        [{ "node": "Respond Success", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": ""
+  },
+  "tags": [],
+  "pinData": {}
+}
