@@ -5,7 +5,7 @@
       "parameters": { "rule": { "interval": [{ "field": "minutes", "minutesInterval": 5 }] } },
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
+      "typeVersion": 1,
       "position": [100, 300]
     },
     {
@@ -17,7 +17,7 @@
       },
       "name": "Read Pending",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "typeVersion": 4,
       "position": [320, 300]
     },
     {
@@ -29,7 +29,7 @@
       },
       "name": "Lock Record",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "typeVersion": 4,
       "position": [540, 300]
     },
     {
@@ -44,7 +44,7 @@
       },
       "name": "AI SEO Analysis",
       "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1.8,
+      "typeVersion": 1,
       "position": [760, 300]
     },
     {
@@ -67,8 +67,9 @@
       },
       "name": "Save to Sheet B",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [980, 300]
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -79,8 +80,20 @@
       },
       "name": "Mark Done",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [1200, 300]
+      "typeVersion": 4,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Articles",
+        "columns": { "mappingMode": "defineBelow", "value": { "article_id": "={{ $node['Lock Record'].json.article_id }}", "seo_status": "failed", "seo_error": "={{ $json.message }}" } }
+      },
+      "name": "Handle Failure",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1250, 450]
     }
   ],
   "connections": {
@@ -88,6 +101,11 @@
     "Read Pending": { "main": [[{ "node": "Lock Record", "type": "main", "index": 0 }]] },
     "Lock Record": { "main": [[{ "node": "AI SEO Analysis", "type": "main", "index": 0 }]] },
     "AI SEO Analysis": { "main": [[{ "node": "Save to Sheet B", "type": "main", "index": 0 }]] },
-    "Save to Sheet B": { "main": [[{ "node": "Mark Done", "type": "main", "index": 0 }]] }
+    "Save to Sheet B": { 
+      "main": [
+        [{ "node": "Mark Done", "type": "main", "index": 0 }],
+        [{ "node": "Handle Failure", "type": "main", "index": 1 }]
+      ] 
+    }
   }
 }
