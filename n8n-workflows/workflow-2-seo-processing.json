@@ -32,20 +32,12 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "string": [
-            {
-              "value1": "={{ $json.seo_status }}",
-              "operation": "equal",
-              "value2": "pending"
-            }
-          ]
-        }
+        "jsCode": "// Filter for articles that need processing.\n// Catches 'pending' and also 'processing' articles stuck from previous failed runs.\nconst items = $input.all();\nconst toProcess = items.filter(item => {\n  const status = (item.json.seo_status || '').toString().trim().toLowerCase();\n  return status === 'pending' || status === 'processing';\n});\nif (toProcess.length === 0) {\n  // Nothing to process — return empty to stop execution\n  return [];\n}\nreturn toProcess;"
       },
       "id": "node-filter-pending",
       "name": "Filter Pending Articles",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [520, 300]
     },
     {
@@ -261,8 +253,7 @@
       "main": [
         [
           { "node": "Lock Record", "type": "main", "index": 0 }
-        ],
-        []
+        ]
       ]
     },
     "Lock Record": {
