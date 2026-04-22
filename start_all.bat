@@ -5,6 +5,9 @@ set WEBHOOK_URL=https://unhitched-renewably-trembling.ngrok-free.dev
 echo Starting Next.js frontend on port 3000...
 start cmd /k "npm run dev"
 
+echo Starting ngrok tunnel...
+start cmd /k "ngrok http --url=unhitched-renewably-trembling.ngrok-free.dev 567"
+
 echo Waiting for ports to stabilize...
 timeout /t 5
 
