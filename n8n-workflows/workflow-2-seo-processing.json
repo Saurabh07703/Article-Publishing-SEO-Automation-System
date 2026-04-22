@@ -24,11 +24,11 @@
         "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
         "sheetName": "Articles"
       },
-      "id": "node-read-all",
+      "id": "node-read-articles",
       "name": "Read All Articles",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [320, 300]
+      "position": [300, 300]
     },
     {
       "parameters": {
@@ -43,10 +43,10 @@
         }
       },
       "id": "node-filter-pending",
-      "name": "Filter Pending",
+      "name": "Filter Pending Articles",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [540, 300]
+      "position": [520, 300]
     },
     {
       "parameters": {
@@ -56,17 +56,77 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "article_id": "={{ $json.article_id }}",
-            "seo_status": "processing"
+            "article_id":  "={{ $json.article_id }}",
+            "seo_status":  "processing"
           },
           "matchingColumns": ["article_id"]
         }
       },
-      "id": "node-lock",
+      "id": "node-lock-record",
       "name": "Lock Record",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [760, 200]
+      "position": [740, 200]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "SEO_Results"
+      },
+      "id": "node-read-seo",
+      "name": "Read SEO Results Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [960, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Idempotency check: does this article_id already exist in Sheet B?\nconst targetId = $node['Lock Record'].json.article_id;\nconst allSeoRows = $input.all();\n\nconst alreadyProcessed = allSeoRows.some(\n  row => row.json.article_id && row.json.article_id.toString().trim() === targetId.toString().trim()\n);\n\n// Pass through all original article data from the locked record\nreturn [{\n  json: {\n    already_processed: alreadyProcessed,\n    article_id:        targetId,\n    title:             $node['Lock Record'].json.title,\n    content:           $node['Lock Record'].json.content,\n    category:          $node['Lock Record'].json.category || ''\n  }\n}];"
+      },
+      "id": "node-idempotency-check",
+      "name": "Check Idempotency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.already_processed }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-already-done",
+      "name": "Already Processed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1400, 200]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Articles",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id":       "={{ $json.article_id }}",
+            "seo_status":       "done",
+            "seo_processed_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": ["article_id"]
+        }
+      },
+      "id": "node-skip-mark-done",
+      "name": "Skip - Mark Done",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1620, 100]
     },
     {
       "parameters": {
@@ -75,30 +135,32 @@
           "values": [
             {
               "role": "system",
-              "content": "You are an expert SEO analyst. Analyze the given article and return ONLY a valid JSON object with no extra text or markdown."
+              "content": "You are a world-class SEO strategist with deep expertise in search engine algorithms, keyword research, and content optimization. You must return ONLY a valid JSON object — no markdown, no code fences, no commentary whatsoever."
             },
             {
               "role": "user",
-              "content": "Analyze this article for SEO.\n\nTitle: {{ $json.title }}\nCategory: {{ $json.category }}\nContent: {{ $json.content }}\n\nReturn exactly this JSON structure:\n{\n  \"primary_keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"],\n  \"long_tail_keywords\": [\"long tail phrase 1\", \"long tail phrase 2\"],\n  \"meta_title\": \"An SEO optimized title under 60 chars\",\n  \"meta_description\": \"A compelling meta description under 160 chars\",\n  \"ranking_insights\": {\n    \"primary_target\": \"best keyword to target\",\n    \"high_opportunity\": [\"low competition keyword 1\", \"low competition keyword 2\"],\n    \"high_competition\": [\"hard to rank keyword 1\"],\n    \"notes\": \"Brief strategic advice for ranking this article\"\n  }\n}"
+              "content": "Perform a comprehensive SEO analysis for the following article.\n\nTitle: {{ $json.title }}\nCategory: {{ $json.category }}\nContent: {{ $json.content }}\n\nRequirements:\n- primary_keywords: exactly 7 high-relevance keywords (single or two words)\n- long_tail_keywords: exactly 15 long-tail phrases (3-6 words each, conversational and question-based)\n- meta_title: a compelling, click-worthy title STRICTLY under 60 characters\n- meta_description: a persuasive summary STRICTLY under 155 characters with a call-to-action\n- ranking_insights: a structured object analyzing the competitive landscape\n\nFor ranking_insights, consider keyword difficulty, search intent, and SERP competition:\n- primary_target: the single best keyword to build the entire article strategy around (lowest difficulty vs highest opportunity)\n- high_opportunity: 3-5 keywords with low competition but solid search volume and strong topical relevance\n- high_competition: 2-3 keywords that are dominated by big brands or authoritative sites — difficult to rank for without significant domain authority\n- notes: a 2-3 sentence strategic recommendation covering content gaps, internal linking opportunities, and featured snippet targeting\n\nReturn this EXACT JSON structure:\n{\n  \"primary_keywords\": [\"kw1\", \"kw2\", \"kw3\", \"kw4\", \"kw5\", \"kw6\", \"kw7\"],\n  \"long_tail_keywords\": [\"phrase 1\", \"phrase 2\", \"phrase 3\", \"phrase 4\", \"phrase 5\", \"phrase 6\", \"phrase 7\", \"phrase 8\", \"phrase 9\", \"phrase 10\", \"phrase 11\", \"phrase 12\", \"phrase 13\", \"phrase 14\", \"phrase 15\"],\n  \"meta_title\": \"under 60 chars\",\n  \"meta_description\": \"under 155 chars with CTA\",\n  \"ranking_insights\": {\n    \"primary_target\": \"best keyword\",\n    \"high_opportunity\": [\"opp kw 1\", \"opp kw 2\", \"opp kw 3\"],\n    \"high_competition\": [\"comp kw 1\", \"comp kw 2\"],\n    \"notes\": \"Strategic recommendation here.\"\n  }\n}"
             }
           ]
-        }
+        },
+        "options": {}
       },
-      "id": "node-openai",
+      "id": "node-openai-seo",
       "name": "AI SEO Analysis",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [980, 200]
+      "position": [1620, 300],
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "const raw = $input.first().json.message?.content || $input.first().json.choices?.[0]?.message?.content || '';\nlet seo;\ntry {\n  // Strip markdown code fences if present\n  const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n  seo = JSON.parse(cleaned);\n} catch(e) {\n  throw new Error('Failed to parse OpenAI JSON response: ' + raw.slice(0, 200));\n}\n\nconst articleData = $node['Lock Record'].json;\n\nreturn [{\n  json: {\n    article_id: articleData.article_id,\n    processed_at: new Date().toISOString(),\n    primary_keywords_csv: (seo.primary_keywords || []).join(', '),\n    long_tail_keywords_csv: (seo.long_tail_keywords || []).join(', '),\n    meta_title: seo.meta_title || '',\n    meta_description: seo.meta_description || '',\n    ranking_insights: JSON.stringify(seo.ranking_insights || {})\n  }\n}];"
+        "jsCode": "// Parse OpenAI response — handle all response formats safely\nconst openaiItem = $input.first().json;\nconst raw = openaiItem.message?.content\n  || openaiItem.choices?.[0]?.message?.content\n  || openaiItem.text\n  || '';\n\nconst articleId = $node['Check Idempotency'].json.article_id;\n\nlet seo;\ntry {\n  const cleaned = raw\n    .replace(/^```json\\s*/i, '')\n    .replace(/^```\\s*/i, '')\n    .replace(/```\\s*$/i, '')\n    .trim();\n  seo = JSON.parse(cleaned);\n} catch (e) {\n  throw new Error('OpenAI JSON parse error: ' + e.message + ' | Raw: ' + raw.slice(0, 300));\n}\n\n// Validate required fields exist\nif (!Array.isArray(seo.primary_keywords)) throw new Error('Missing primary_keywords in SEO response');\nif (!Array.isArray(seo.long_tail_keywords)) throw new Error('Missing long_tail_keywords in SEO response');\nif (!seo.meta_title) throw new Error('Missing meta_title in SEO response');\nif (!seo.meta_description) throw new Error('Missing meta_description in SEO response');\n\n// Enforce character limits\nconst metaTitle = seo.meta_title.slice(0, 60);\nconst metaDesc  = seo.meta_description.slice(0, 155);\n\nreturn [{\n  json: {\n    article_id:            articleId,\n    processed_at:          new Date().toISOString(),\n    primary_keywords_csv:  seo.primary_keywords.join(', '),\n    long_tail_keywords_csv: seo.long_tail_keywords.join(', '),\n    meta_title:            metaTitle,\n    meta_description:      metaDesc,\n    openai_raw:            raw,\n    ranking_insights:      JSON.stringify(seo.ranking_insights || {})\n  }\n}];"
       },
-      "id": "node-parse",
+      "id": "node-parse-seo",
       "name": "Parse SEO Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1200, 200]
+      "position": [1840, 300]
     },
     {
       "parameters": {
@@ -108,22 +170,22 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "article_id": "={{ $json.article_id }}",
-            "processed_at": "={{ $json.processed_at }}",
-            "primary_keywords_csv": "={{ $json.primary_keywords_csv }}",
+            "article_id":             "={{ $json.article_id }}",
+            "processed_at":           "={{ $json.processed_at }}",
+            "primary_keywords_csv":   "={{ $json.primary_keywords_csv }}",
             "long_tail_keywords_csv": "={{ $json.long_tail_keywords_csv }}",
-            "meta_title": "={{ $json.meta_title }}",
-            "meta_description": "={{ $json.meta_description }}",
-            "ranking_insights": "={{ $json.ranking_insights }}"
+            "meta_title":             "={{ $json.meta_title }}",
+            "meta_description":       "={{ $json.meta_description }}",
+            "openai_raw":             "={{ $json.openai_raw }}",
+            "ranking_insights":       "={{ $json.ranking_insights }}"
           }
         }
       },
-      "id": "node-save-seo",
-      "name": "Save to SEO_Results",
+      "id": "node-save-seo-results",
+      "name": "Save to SEO_Results Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1420, 200],
-      "onError": "continueErrorOutput"
+      "position": [2060, 300]
     },
     {
       "parameters": {
@@ -133,8 +195,10 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "article_id": "={{ $json.article_id }}",
-            "seo_status": "done"
+            "article_id":       "={{ $json.article_id }}",
+            "seo_status":       "done",
+            "seo_processed_at": "={{ new Date().toISOString() }}",
+            "seo_error":        ""
           },
           "matchingColumns": ["article_id"]
         }
@@ -143,7 +207,17 @@
       "name": "Mark Done",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1640, 100]
+      "position": [2280, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capture the error from OpenAI node failure\nconst errorMsg = $input.first().json.error?.message\n  || $input.first().json.message\n  || 'Unknown SEO processing error';\n\n// Get article_id from the Check Idempotency node context\nconst articleId = $node['Check Idempotency'].json.article_id;\n\nreturn [{\n  json: {\n    article_id: articleId,\n    error_message: errorMsg\n  }\n}];"
+      },
+      "id": "node-capture-error",
+      "name": "Capture Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1840, 480]
     },
     {
       "parameters": {
@@ -153,45 +227,104 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "article_id": "={{ $node['Lock Record'].json.article_id }}",
-            "seo_status": "failed"
+            "article_id":       "={{ $json.article_id }}",
+            "seo_status":       "failed",
+            "seo_processed_at": "={{ new Date().toISOString() }}",
+            "seo_error":        "={{ $json.error_message }}"
           },
           "matchingColumns": ["article_id"]
         }
       },
-      "id": "node-handle-failure",
-      "name": "Handle Failure",
+      "id": "node-mark-failed",
+      "name": "Mark Failed",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [1640, 400]
+      "position": [2060, 480]
     }
   ],
   "connections": {
     "Schedule Trigger": {
-      "main": [[{ "node": "Read All Articles", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          { "node": "Read All Articles", "type": "main", "index": 0 }
+        ]
+      ]
     },
     "Read All Articles": {
-      "main": [[{ "node": "Filter Pending", "type": "main", "index": 0 }]]
-    },
-    "Filter Pending": {
       "main": [
-        [{ "node": "Lock Record", "type": "main", "index": 0 }],
+        [
+          { "node": "Filter Pending Articles", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Filter Pending Articles": {
+      "main": [
+        [
+          { "node": "Lock Record", "type": "main", "index": 0 }
+        ],
         []
       ]
     },
     "Lock Record": {
-      "main": [[{ "node": "AI SEO Analysis", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          { "node": "Read SEO Results Sheet", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Read SEO Results Sheet": {
+      "main": [
+        [
+          { "node": "Check Idempotency", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Check Idempotency": {
+      "main": [
+        [
+          { "node": "Already Processed?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Already Processed?": {
+      "main": [
+        [
+          { "node": "Skip - Mark Done", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "AI SEO Analysis", "type": "main", "index": 0 }
+        ]
+      ]
     },
     "AI SEO Analysis": {
-      "main": [[{ "node": "Parse SEO Response", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          { "node": "Parse SEO Response", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Capture Error", "type": "main", "index": 0 }
+        ]
+      ]
     },
     "Parse SEO Response": {
-      "main": [[{ "node": "Save to SEO_Results", "type": "main", "index": 0 }]]
-    },
-    "Save to SEO_Results": {
       "main": [
-        [{ "node": "Mark Done", "type": "main", "index": 0 }],
-        [{ "node": "Handle Failure", "type": "main", "index": 0 }]
+        [
+          { "node": "Save to SEO_Results Sheet", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Save to SEO_Results Sheet": {
+      "main": [
+        [
+          { "node": "Mark Done", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Capture Error": {
+      "main": [
+        [
+          { "node": "Mark Failed", "type": "main", "index": 0 }
+        ]
       ]
     }
   }
