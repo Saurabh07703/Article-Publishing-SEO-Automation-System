@@ -33,6 +33,7 @@ export async function submitArticle(
     headers: {
       "Content-Type": "application/json",
       "X-Idempotency-Key": idempotencyKey,
+      "ngrok-skip-browser-warning": "true",
     },
     body: JSON.stringify({ ...payload, idempotency_key: idempotencyKey }),
   });
