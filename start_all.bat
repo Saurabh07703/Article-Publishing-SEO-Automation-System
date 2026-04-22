@@ -1,6 +1,7 @@
 @echo off
 set N8N_PORT=567
 set WEBHOOK_URL=https://unhitched-renewably-trembling.ngrok-free.dev
+set GOOGLE_SHEET_ID=1b9Nkj4Mt3jLSDG6BCwLKdQFw3W9WHjCQM2v18JlSHis
 
 echo Starting Next.js frontend on port 3000...
 start cmd /k "npm run dev"
