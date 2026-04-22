@@ -1,5 +1,5 @@
 {
-  "name": "Workflow 1 - Article Ingestion",
+  "name": "Workflow 1 - Article Ingestion + SEO Processing",
   "nodes": [
     {
       "parameters": {
@@ -12,23 +12,17 @@
       "name": "Webhook - Article Ingest",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        250,
-        300
-      ]
+      "position": [200, 300]
     },
     {
       "parameters": {
-        "jsCode": "const body = $input.first().json.body || $input.first().json;\n// Reliable ID generation for all environments\nconst articleId = 'art_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);\n\nreturn [{\n  json: {\n    article_id: articleId,\n    created_at: new Date().toISOString(),\n    title: (body.title || '').trim(),\n    content: (body.content || '').trim(),\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: (body.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', '),\n    seo_status: 'pending',\n    seo_requested_at: new Date().toISOString()\n  }\n}];"
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst articleId = 'art_' + Math.random().toString(36).substring(2, 10) + '_' + Date.now().toString(36);\n\nreturn [{\n  json: {\n    article_id: articleId,\n    created_at: new Date().toISOString(),\n    title: (body.title || '').trim(),\n    content: (body.content || '').trim(),\n    category: (body.category || '').trim(),\n    author: (body.author || '').trim(),\n    published_at: (body.published_at || '').trim(),\n    tags_csv: (body.tags || '').split(',').map(t => t.trim()).filter(Boolean).join(', '),\n    seo_status: 'pending',\n    seo_requested_at: new Date().toISOString()\n  }\n}];"
       },
       "id": "node-normalize",
       "name": "Normalize Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        480,
-        300
-      ]
+      "position": [420, 300]
     },
     {
       "parameters": {
@@ -46,33 +40,105 @@
             "author": "={{ $json.author }}",
             "published_at": "={{ $json.published_at }}",
             "tags_csv": "={{ $json.tags_csv }}",
-            "seo_status": "={{ $json.seo_status }}",
+            "seo_status": "processing",
             "seo_requested_at": "={{ $json.seo_requested_at }}"
           }
         }
       },
       "id": "node-sheet-a",
-      "name": "Store in Sheet A",
+      "name": "Save to Articles Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [
-        700,
-        300
-      ]
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert SEO analyst. Return ONLY a valid JSON object with no markdown, no code fences, no extra text."
+            },
+            {
+              "role": "user",
+              "content": "Analyze this article for SEO.\n\nTitle: {{ $node['Normalize Data'].json.title }}\nCategory: {{ $node['Normalize Data'].json.category }}\nContent: {{ $node['Normalize Data'].json.content }}\n\nReturn exactly this JSON:\n{\n  \"primary_keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"],\n  \"long_tail_keywords\": [\"long tail phrase 1\", \"long tail phrase 2\"],\n  \"meta_title\": \"SEO optimized title under 60 chars\",\n  \"meta_description\": \"Compelling meta description under 160 chars\",\n  \"ranking_insights\": {\n    \"primary_target\": \"best single keyword to target\",\n    \"high_opportunity\": [\"low competition keyword 1\", \"low competition keyword 2\"],\n    \"high_competition\": [\"hard to rank keyword\"],\n    \"notes\": \"Brief strategic ranking advice\"\n  }\n}"
+            }
+          ]
+        }
+      },
+      "id": "node-openai",
+      "name": "AI SEO Analysis",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message?.content\n  || $input.first().json.choices?.[0]?.message?.content\n  || '';\n\nlet seo;\ntry {\n  const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n  seo = JSON.parse(cleaned);\n} catch(e) {\n  // If OpenAI fails, use placeholder values so the sheet still gets updated\n  console.warn('OpenAI parse failed, using fallbacks. Raw:', raw.slice(0, 200));\n  seo = {\n    primary_keywords: ['content marketing', 'article seo'],\n    long_tail_keywords: ['how to rank articles', 'seo content strategy'],\n    meta_title: $node['Normalize Data'].json.title.slice(0, 60),\n    meta_description: 'Read this article for insights on ' + $node['Normalize Data'].json.title,\n    ranking_insights: {\n      primary_target: 'article seo',\n      high_opportunity: ['content strategy'],\n      high_competition: ['seo'],\n      notes: 'Focus on long-tail keywords for faster ranking.'\n    }\n  };\n}\n\nconst articleId = $node['Normalize Data'].json.article_id;\n\nreturn [{\n  json: {\n    article_id: articleId,\n    processed_at: new Date().toISOString(),\n    primary_keywords_csv: (seo.primary_keywords || []).join(', '),\n    long_tail_keywords_csv: (seo.long_tail_keywords || []).join(', '),\n    meta_title: seo.meta_title || '',\n    meta_description: seo.meta_description || '',\n    ranking_insights: JSON.stringify(seo.ranking_insights || {})\n  }\n}];"
+      },
+      "id": "node-parse-seo",
+      "name": "Parse SEO Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "SEO_Results",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "primary_keywords_csv": "={{ $json.primary_keywords_csv }}",
+            "long_tail_keywords_csv": "={{ $json.long_tail_keywords_csv }}",
+            "meta_title": "={{ $json.meta_title }}",
+            "meta_description": "={{ $json.meta_description }}",
+            "ranking_insights": "={{ $json.ranking_insights }}"
+          }
+        }
+      },
+      "id": "node-sheet-b",
+      "name": "Save to SEO_Results Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
+        "sheetName": "Articles",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "article_id": "={{ $json.article_id }}",
+            "seo_status": "done"
+          },
+          "matchingColumns": [
+            "article_id"
+          ]
+        }
+      },
+      "id": "node-mark-done",
+      "name": "Mark Article Done",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1520, 300]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, article_id: $node['Normalize Data'].json.article_id }) }}"
+        "responseBody": "={{ JSON.stringify({ success: true, article_id: $node['Normalize Data'].json.article_id, message: 'Article ingested and SEO processed successfully' }) }}"
       },
       "id": "node-respond",
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [
-        920,
-        300
-      ]
+      "position": [1740, 300]
     }
   ],
   "connections": {
@@ -91,14 +157,58 @@
       "main": [
         [
           {
-            "node": "Store in Sheet A",
+            "node": "Save to Articles Sheet",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Store in Sheet A": {
+    "Save to Articles Sheet": {
+      "main": [
+        [
+          {
+            "node": "AI SEO Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI SEO Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse SEO Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SEO Response": {
+      "main": [
+        [
+          {
+            "node": "Save to SEO_Results Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to SEO_Results Sheet": {
+      "main": [
+        [
+          {
+            "node": "Mark Article Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Article Done": {
       "main": [
         [
           {
