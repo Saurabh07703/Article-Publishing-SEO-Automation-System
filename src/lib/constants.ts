@@ -1,6 +1,6 @@
 export const N8N_WEBHOOK_URL =
   process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
-  "https://your-n8n-instance.com/webhook/article-ingest";
+  "https://unhitched-renewably-trembling.ngrok-free.dev/webhook/article-ingest";
 
 export const CATEGORIES = [
   "Technology",
