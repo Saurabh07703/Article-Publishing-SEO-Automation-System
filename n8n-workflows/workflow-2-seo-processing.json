@@ -12,36 +12,41 @@
           ]
         }
       },
+      "id": "node-schedule",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [
-        100,
-        300
-      ]
+      "position": [100, 300]
     },
     {
       "parameters": {
         "operation": "read",
         "documentId": "={{ $env.GOOGLE_SHEET_ID }}",
-        "sheetName": "Articles",
-        "filters": {
-          "conditions": [
+        "sheetName": "Articles"
+      },
+      "id": "node-read-all",
+      "name": "Read All Articles",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
             {
-              "condition": "equal",
               "value1": "={{ $json.seo_status }}",
+              "operation": "equal",
               "value2": "pending"
             }
           ]
         }
       },
-      "name": "Read Pending",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [
-        320,
-        300
-      ]
+      "id": "node-filter-pending",
+      "name": "Filter Pending",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [540, 300]
     },
     {
       "parameters": {
@@ -53,16 +58,15 @@
           "value": {
             "article_id": "={{ $json.article_id }}",
             "seo_status": "processing"
-          }
+          },
+          "matchingColumns": ["article_id"]
         }
       },
+      "id": "node-lock",
       "name": "Lock Record",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [
-        540,
-        300
-      ]
+      "position": [760, 200]
     },
     {
       "parameters": {
@@ -71,22 +75,30 @@
           "values": [
             {
               "role": "system",
-              "content": "You are an SEO analyst. Return ONLY JSON."
+              "content": "You are an expert SEO analyst. Analyze the given article and return ONLY a valid JSON object with no extra text or markdown."
             },
             {
               "role": "user",
-              "content": "Analyze: {{ $json.title }}. Content: {{ $json.content }}. Return: { primary_keywords: [], long_tail_keywords: [], meta_title: '', meta_description: '', ranking_insights: { primary_target: '', high_opportunity: [], high_competition: [], notes: '' } }"
+              "content": "Analyze this article for SEO.\n\nTitle: {{ $json.title }}\nCategory: {{ $json.category }}\nContent: {{ $json.content }}\n\nReturn exactly this JSON structure:\n{\n  \"primary_keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"],\n  \"long_tail_keywords\": [\"long tail phrase 1\", \"long tail phrase 2\"],\n  \"meta_title\": \"An SEO optimized title under 60 chars\",\n  \"meta_description\": \"A compelling meta description under 160 chars\",\n  \"ranking_insights\": {\n    \"primary_target\": \"best keyword to target\",\n    \"high_opportunity\": [\"low competition keyword 1\", \"low competition keyword 2\"],\n    \"high_competition\": [\"hard to rank keyword 1\"],\n    \"notes\": \"Brief strategic advice for ranking this article\"\n  }\n}"
             }
           ]
         }
       },
+      "id": "node-openai",
       "name": "AI SEO Analysis",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [
-        760,
-        300
-      ]
+      "position": [980, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.message?.content || $input.first().json.choices?.[0]?.message?.content || '';\nlet seo;\ntry {\n  // Strip markdown code fences if present\n  const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim();\n  seo = JSON.parse(cleaned);\n} catch(e) {\n  throw new Error('Failed to parse OpenAI JSON response: ' + raw.slice(0, 200));\n}\n\nconst articleData = $node['Lock Record'].json;\n\nreturn [{\n  json: {\n    article_id: articleData.article_id,\n    processed_at: new Date().toISOString(),\n    primary_keywords_csv: (seo.primary_keywords || []).join(', '),\n    long_tail_keywords_csv: (seo.long_tail_keywords || []).join(', '),\n    meta_title: seo.meta_title || '',\n    meta_description: seo.meta_description || '',\n    ranking_insights: JSON.stringify(seo.ranking_insights || {})\n  }\n}];"
+      },
+      "id": "node-parse",
+      "name": "Parse SEO Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200]
     },
     {
       "parameters": {
@@ -96,23 +108,21 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "article_id": "={{ $node['Lock Record'].json.article_id }}",
-            "processed_at": "={{ new Date().toISOString() }}",
-            "primary_keywords_csv": "={{ JSON.parse($json.message.content).primary_keywords.join(', ') }}",
-            "long_tail_keywords_csv": "={{ JSON.parse($json.message.content).long_tail_keywords.join(', ') }}",
-            "meta_title": "={{ JSON.parse($json.message.content).meta_title }}",
-            "meta_description": "={{ JSON.parse($json.message.content).meta_description }}",
-            "ranking_insights": "={{ JSON.stringify(JSON.parse($json.message.content).ranking_insights) }}"
+            "article_id": "={{ $json.article_id }}",
+            "processed_at": "={{ $json.processed_at }}",
+            "primary_keywords_csv": "={{ $json.primary_keywords_csv }}",
+            "long_tail_keywords_csv": "={{ $json.long_tail_keywords_csv }}",
+            "meta_title": "={{ $json.meta_title }}",
+            "meta_description": "={{ $json.meta_description }}",
+            "ranking_insights": "={{ $json.ranking_insights }}"
           }
         }
       },
-      "name": "Save to Sheet B",
+      "id": "node-save-seo",
+      "name": "Save to SEO_Results",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [
-        1000,
-        300
-      ],
+      "position": [1420, 200],
       "onError": "continueErrorOutput"
     },
     {
@@ -123,18 +133,17 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "article_id": "={{ $node['Lock Record'].json.article_id }}",
+            "article_id": "={{ $json.article_id }}",
             "seo_status": "done"
-          }
+          },
+          "matchingColumns": ["article_id"]
         }
       },
+      "id": "node-mark-done",
       "name": "Mark Done",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [
-        1250,
-        200
-      ]
+      "position": [1640, 100]
     },
     {
       "parameters": {
@@ -145,81 +154,44 @@
           "mappingMode": "defineBelow",
           "value": {
             "article_id": "={{ $node['Lock Record'].json.article_id }}",
-            "seo_status": "failed",
-            "seo_error": "={{ $json.message }}"
-          }
+            "seo_status": "failed"
+          },
+          "matchingColumns": ["article_id"]
         }
       },
+      "id": "node-handle-failure",
       "name": "Handle Failure",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
-      "position": [
-        1250,
-        450
-      ]
+      "position": [1640, 400]
     }
   ],
   "connections": {
     "Schedule Trigger": {
-      "main": [
-        [
-          {
-            "node": "Read Pending",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Read All Articles", "type": "main", "index": 0 }]]
     },
-    "Read Pending": {
+    "Read All Articles": {
+      "main": [[{ "node": "Filter Pending", "type": "main", "index": 0 }]]
+    },
+    "Filter Pending": {
       "main": [
-        [
-          {
-            "node": "Lock Record",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Lock Record", "type": "main", "index": 0 }],
+        []
       ]
     },
     "Lock Record": {
-      "main": [
-        [
-          {
-            "node": "AI SEO Analysis",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "AI SEO Analysis", "type": "main", "index": 0 }]]
     },
     "AI SEO Analysis": {
-      "main": [
-        [
-          {
-            "node": "Save to Sheet B",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Parse SEO Response", "type": "main", "index": 0 }]]
     },
-    "Save to Sheet B": {
+    "Parse SEO Response": {
+      "main": [[{ "node": "Save to SEO_Results", "type": "main", "index": 0 }]]
+    },
+    "Save to SEO_Results": {
       "main": [
-        [
-          {
-            "node": "Mark Done",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Handle Failure",
-            "type": "main",
-            "index": 1
-          }
-        ]
+        [{ "node": "Mark Done", "type": "main", "index": 0 }],
+        [{ "node": "Handle Failure", "type": "main", "index": 0 }]
       ]
     }
   }
